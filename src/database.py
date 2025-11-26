@@ -1,11 +1,13 @@
 import json
 import os
 
-DB_FILE = "med_data.json"
-
+# Get the project root directory (parent of src folder)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_FILE = os.path.join(_PROJECT_ROOT, "med_data.json")
 DATA_STORE = {
     "users": [],
     "medications": [],
+    
     "history": []
 }
 
