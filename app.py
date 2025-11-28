@@ -26,8 +26,8 @@ def get_data_store():
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# Custom Colors - Professional dark theme
-COLORS = {
+# Custom Colors - Themes
+DARK_THEME = {
     "bg_dark": "#0f0f1a",
     "bg_card": "#1a1a2e",
     "bg_input": "#252540",
@@ -42,6 +42,61 @@ COLORS = {
     "text_secondary": "#94a3b8",
     "border": "#334155",
 }
+LIGHT_THEME = {
+    "bg_dark": "#eef1f6",
+    "bg_card": "#ffffff",
+    "bg_input": "#dfe5f1",
+    "accent": "#c5d1e7",
+    "primary": "#e94560",
+    "primary_hover": "#d13a54",
+    "success": "#14833d",
+    "success_hover": "#0f6e33",
+    "warning": "#f59e0b",
+    "error": "#ef4444",
+    "text": "#0f172a",
+    "text_secondary": "#334155",
+    "border": "#c1cad9",
+}
+
+COLORS = dict(DARK_THEME)
+
+
+class FontManager:
+    """Central font registry to scale text without resizing widgets"""
+    def __init__(self):
+        self.scale = 1.0
+        self.fonts = {}
+    
+    def _key(self, size, weight):
+        return f"{size}:{weight}"
+    
+    def get(self, size, weight="normal"):
+        key = self._key(size, weight)
+        if key not in self.fonts:
+            self.fonts[key] = {
+                "base": size,
+                "weight": weight,
+                "font": ctk.CTkFont(size=int(round(size * self.scale)), weight=weight),
+            }
+        return self.fonts[key]["font"]
+    
+    def set_scale(self, scale):
+        self.scale = scale
+        for info in self.fonts.values():
+            new_size = max(8, int(round(info["base"] * self.scale)))
+            info["font"].configure(size=new_size, weight=info["weight"])
+
+
+FONT_MANAGER = FontManager()
+
+
+def font(size, weight="normal"):
+    return FONT_MANAGER.get(size, weight)
+
+
+def scale(value):
+    """Scale numeric sizes (heights/padding) with current font scale"""
+    return max(1, int(round(value * FONT_MANAGER.scale)))
 
 # ============================================
 # LANGUAGE TRANSLATIONS
@@ -154,6 +209,8 @@ TRANSLATIONS = {
         
         # Language
         "language": "🌐 Language",
+        "light_mode": "☀ Light",
+        "dark_mode": "🌙 Dark",
     },
     "zh": {
         # App
@@ -262,6 +319,8 @@ TRANSLATIONS = {
         
         # Language
         "language": "🌐 语言",
+        "light_mode": "☀ 亮色",
+        "dark_mode": "🌙 暗色",
     }
 }
 
@@ -300,19 +359,19 @@ class CustomDialog(ctk.CTkToplevel):
         frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Icon
-        ctk.CTkLabel(frame, text=icon, font=ctk.CTkFont(size=50), 
+        ctk.CTkLabel(frame, text=icon, font=font(50), 
                      text_color=color).pack(pady=(25, 15))
         
         # Message
-        ctk.CTkLabel(frame, text=message, font=ctk.CTkFont(size=14),
+        ctk.CTkLabel(frame, text=message, font=font(14),
                      wraplength=360, justify="center").pack(pady=(0, 20))
         
         # Button frame to ensure proper display
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", padx=40, pady=(0, 25))
         
-        ok_btn = ctk.CTkButton(btn_frame, text=btn_text, width=140, height=42,
-                               font=ctk.CTkFont(size=14, weight="bold"),
+        ok_btn = ctk.CTkButton(btn_frame, text=btn_text, width=140, height=scale(42),
+                               font=font(14, "bold"),
                                fg_color=color, hover_color=COLORS["accent"],
                                corner_radius=10, command=self.destroy)
         ok_btn.pack(expand=True)
@@ -329,6 +388,9 @@ class MedicationApp(ctk.CTk):
         
         # Current language
         self.current_lang = "en"
+        self.font_scale = 1.0
+        self.font_labels = []
+        self.theme_mode = "dark"
         
         self.title(self.t("app_title"))
         self.geometry("1050x700")
@@ -355,12 +417,59 @@ class MedicationApp(ctk.CTk):
         """Toggle between English and Chinese"""
         self.current_lang = "zh" if self.current_lang == "en" else "en"
         self.title(self.t("app_title"))
-        
-        # Refresh current view
+        self.refresh_current_view()
+    
+    def toggle_theme(self):
+        """Switch between dark and light themes"""
+        self.theme_mode = "light" if self.theme_mode == "dark" else "dark"
+        new_palette = LIGHT_THEME if self.theme_mode == "light" else DARK_THEME
+        COLORS.clear()
+        COLORS.update(new_palette)
+        ctk.set_appearance_mode(self.theme_mode)
+        self.refresh_current_view()
+    
+    def refresh_current_view(self):
+        """Reload UI based on current auth state"""
+        self.configure(fg_color=COLORS["bg_dark"])
         if self.current_user_id:
             self.show_dashboard()
         else:
             self.show_login()
+    
+    def adjust_font_scale(self, delta):
+        """Increase/decrease text size without changing layout dimensions"""
+        new_scale = max(0.85, min(1.6, self.font_scale + delta))
+        if abs(new_scale - self.font_scale) < 0.01:
+            return
+        self.font_scale = new_scale
+        FONT_MANAGER.set_scale(self.font_scale)
+        self.update_font_labels()
+    
+    def increase_font_size(self):
+        self.adjust_font_scale(0.05)
+    
+    def decrease_font_size(self):
+        self.adjust_font_scale(-0.05)
+    
+    def font_percent_text(self):
+        return f"{int(round(self.font_scale * 100))}%"
+    
+    def theme_button_text(self):
+        return self.t("light_mode") if self.theme_mode == "dark" else self.t("dark_mode")
+    
+    def register_font_label(self, label):
+        """Track font-scale labels so they stay in sync"""
+        self.font_labels.append(label)
+        label.configure(text=self.font_percent_text())
+    
+    def update_font_labels(self):
+        text = self.font_percent_text()
+        alive_labels = []
+        for lbl in self.font_labels:
+            if lbl.winfo_exists():
+                lbl.configure(text=text, font=font(12, "bold"))
+                alive_labels.append(lbl)
+        self.font_labels = alive_labels
     
     def show_dialog(self, title, message, dialog_type="info"):
         """Show a custom dialog"""
@@ -394,11 +503,11 @@ class MedicationApp(ctk.CTk):
         brand_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
         brand_frame.place(relx=0.5, rely=0.5, anchor="center")
         
-        ctk.CTkLabel(brand_frame, text="💊", font=ctk.CTkFont(size=80)).pack(pady=(0, 20))
-        ctk.CTkLabel(brand_frame, text="Medication", font=ctk.CTkFont(size=38, weight="bold")).pack()
-        ctk.CTkLabel(brand_frame, text="Health Reminder", font=ctk.CTkFont(size=38, weight="bold")).pack()
+        ctk.CTkLabel(brand_frame, text="💊", font=font(80)).pack(pady=(0, 20))
+        ctk.CTkLabel(brand_frame, text="Medication", font=font(38, "bold")).pack()
+        ctk.CTkLabel(brand_frame, text="Health Reminder", font=font(38, "bold")).pack()
         ctk.CTkLabel(brand_frame, text="Track • Remind • Stay Healthy", 
-                     font=ctk.CTkFont(size=16), text_color=COLORS["text"]).pack(pady=(25, 0))
+                     font=font(16), text_color=COLORS["text"]).pack(pady=(25, 0))
         
         # Right side - Login Form
         right_frame = ctk.CTkFrame(self, fg_color=COLORS["bg_dark"], corner_radius=0)
@@ -408,22 +517,46 @@ class MedicationApp(ctk.CTk):
         lang_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
         lang_frame.pack(anchor="ne", padx=20, pady=15)
         
-        ctk.CTkButton(lang_frame, text=self.t("language"), width=100, height=32,
-                      font=ctk.CTkFont(size=12),
+        ctk.CTkButton(lang_frame, text="A-", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      command=self.decrease_font_size,
+                      text_color=COLORS["text"]).pack(side="left", padx=(0, 8))
+        login_font_label = ctk.CTkLabel(lang_frame, text=self.font_percent_text(),
+                                        font=font(12, "bold"), text_color=COLORS["text_secondary"])
+        login_font_label.pack(side="left", padx=(0, 8))
+        self.register_font_label(login_font_label)
+        ctk.CTkButton(lang_frame, text="A+", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      command=self.increase_font_size,
+                      text_color=COLORS["text"]).pack(side="left", padx=(0, 12))
+        
+        ctk.CTkButton(lang_frame, text=self.theme_button_text(), width=100, height=scale(32),
+                      font=font(12, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      text_color=COLORS["text"],
+                      corner_radius=8, command=self.toggle_theme).pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(lang_frame, text=self.t("language"), width=100, height=scale(32),
+                      font=font(12),
                       fg_color=COLORS["bg_card"], hover_color=COLORS["accent"],
-                      corner_radius=8, command=self.toggle_language).pack()
+                      text_color=COLORS["text"],
+                      corner_radius=8, command=self.toggle_language).pack(side="left")
         
         form_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
         form_frame.place(relx=0.5, rely=0.5, anchor="center")
         
         ctk.CTkLabel(form_frame, text=self.t("welcome_back"), 
-                     font=ctk.CTkFont(size=32, weight="bold")).pack(pady=(0, 8))
+                     font=font(32, "bold")).pack(pady=(0, 8))
         ctk.CTkLabel(form_frame, text=self.t("sign_in_subtitle"), 
-                     font=ctk.CTkFont(size=14), text_color=COLORS["text_secondary"]).pack(pady=(0, 35))
+                     font=font(14), text_color=COLORS["text_secondary"]).pack(pady=(0, 35))
         
         # Username field
-        ctk.CTkLabel(form_frame, text=self.t("username"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=5)
-        self.login_username = ctk.CTkEntry(form_frame, width=320, height=48, 
+        ctk.CTkLabel(form_frame, text=self.t("username"), font=font(13, "bold")).pack(anchor="w", padx=5)
+        self.login_username = ctk.CTkEntry(form_frame, width=320, height=scale(48), 
                                            placeholder_text=self.t("enter_username"),
                                            fg_color=COLORS["bg_input"],
                                            border_color=COLORS["border"],
@@ -431,8 +564,8 @@ class MedicationApp(ctk.CTk):
         self.login_username.pack(pady=(5, 18))
         
         # Password field
-        ctk.CTkLabel(form_frame, text=self.t("password"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=5)
-        self.login_password = ctk.CTkEntry(form_frame, width=320, height=48, 
+        ctk.CTkLabel(form_frame, text=self.t("password"), font=font(13, "bold")).pack(anchor="w", padx=5)
+        self.login_password = ctk.CTkEntry(form_frame, width=320, height=scale(48), 
                                            placeholder_text=self.t("enter_password"),
                                            show="●",
                                            fg_color=COLORS["bg_input"],
@@ -441,8 +574,8 @@ class MedicationApp(ctk.CTk):
         self.login_password.pack(pady=(5, 30))
         
         # Login button
-        ctk.CTkButton(form_frame, text=self.t("sign_in"), width=320, height=50,
-                      font=ctk.CTkFont(size=16, weight="bold"),
+        ctk.CTkButton(form_frame, text=self.t("sign_in"), width=320, height=scale(50),
+                      font=font(16, "bold"),
                       fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
                       corner_radius=10, command=self.handle_login).pack(pady=(0, 20))
         
@@ -454,9 +587,10 @@ class MedicationApp(ctk.CTk):
         ctk.CTkFrame(divider_frame, height=1, fg_color=COLORS["border"]).pack(side="left", fill="x", expand=True)
         
         # Go to Register button
-        ctk.CTkButton(form_frame, text=self.t("create_account_btn"), width=320, height=50,
-                      font=ctk.CTkFont(size=16),
+        ctk.CTkButton(form_frame, text=self.t("create_account_btn"), width=320, height=scale(50),
+                      font=font(16),
                       fg_color="transparent", hover_color=COLORS["bg_input"],
+                      text_color=COLORS["text"],
                       border_width=2, border_color=COLORS["border"],
                       corner_radius=10, command=self.show_register).pack(pady=(15, 0))
         
@@ -516,21 +650,45 @@ class MedicationApp(ctk.CTk):
         lang_frame = ctk.CTkFrame(main_container, fg_color="transparent")
         lang_frame.pack(anchor="ne", padx=20, pady=10)
         
-        ctk.CTkButton(lang_frame, text=self.t("language"), width=100, height=32,
-                      font=ctk.CTkFont(size=12),
+        ctk.CTkButton(lang_frame, text="A-", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      command=self.decrease_font_size,
+                      text_color=COLORS["text"]).pack(side="left", padx=(0, 8))
+        register_font_label = ctk.CTkLabel(lang_frame, text=self.font_percent_text(),
+                                           font=font(12, "bold"), text_color=COLORS["text_secondary"])
+        register_font_label.pack(side="left", padx=(0, 8))
+        self.register_font_label(register_font_label)
+        ctk.CTkButton(lang_frame, text="A+", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      command=self.increase_font_size,
+                      text_color=COLORS["text"]).pack(side="left", padx=(0, 12))
+        
+        ctk.CTkButton(lang_frame, text=self.theme_button_text(), width=100, height=scale(32),
+                      font=font(12, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      text_color=COLORS["text"],
+                      corner_radius=8, command=self.toggle_theme).pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(lang_frame, text=self.t("language"), width=100, height=scale(32),
+                      font=font(12),
                       fg_color=COLORS["bg_card"], hover_color=COLORS["accent"],
-                      corner_radius=8, command=self.toggle_language).pack()
+                      text_color=COLORS["text"],
+                      corner_radius=8, command=self.toggle_language).pack(side="left")
         
         # Center wrapper
         center_wrapper = ctk.CTkFrame(main_container, fg_color="transparent")
         center_wrapper.pack(expand=True, pady=20)
         
         # Header with icon
-        ctk.CTkLabel(center_wrapper, text="🎉", font=ctk.CTkFont(size=60)).pack(pady=(0, 10))
+        ctk.CTkLabel(center_wrapper, text="🎉", font=font(60)).pack(pady=(0, 10))
         ctk.CTkLabel(center_wrapper, text=self.t("create_account"), 
-                     font=ctk.CTkFont(size=32, weight="bold")).pack(pady=(0, 8))
+                     font=font(32, "bold")).pack(pady=(0, 8))
         ctk.CTkLabel(center_wrapper, text=self.t("join_subtitle"), 
-                     font=ctk.CTkFont(size=14), text_color=COLORS["text_secondary"]).pack(pady=(0, 30))
+                     font=font(14), text_color=COLORS["text_secondary"]).pack(pady=(0, 30))
         
         # Form card
         form_card = ctk.CTkFrame(center_wrapper, fg_color=COLORS["bg_card"], corner_radius=15)
@@ -540,8 +698,8 @@ class MedicationApp(ctk.CTk):
         form_inner.pack(padx=40, pady=35)
         
         # Username field
-        ctk.CTkLabel(form_inner, text=self.t("username"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
-        self.register_username = ctk.CTkEntry(form_inner, width=300, height=45, 
+        ctk.CTkLabel(form_inner, text=self.t("username"), font=font(13, "bold")).pack(anchor="w")
+        self.register_username = ctk.CTkEntry(form_inner, width=300, height=scale(45), 
                                               placeholder_text=self.t("choose_username"),
                                               fg_color=COLORS["bg_input"],
                                               border_color=COLORS["border"],
@@ -549,8 +707,8 @@ class MedicationApp(ctk.CTk):
         self.register_username.pack(pady=(5, 15))
         
         # Password field
-        ctk.CTkLabel(form_inner, text=self.t("password"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
-        self.register_password = ctk.CTkEntry(form_inner, width=300, height=45, 
+        ctk.CTkLabel(form_inner, text=self.t("password"), font=font(13, "bold")).pack(anchor="w")
+        self.register_password = ctk.CTkEntry(form_inner, width=300, height=scale(45), 
                                               placeholder_text=self.t("password_hint"),
                                               show="●",
                                               fg_color=COLORS["bg_input"],
@@ -559,8 +717,8 @@ class MedicationApp(ctk.CTk):
         self.register_password.pack(pady=(5, 15))
         
         # Confirm Password field
-        ctk.CTkLabel(form_inner, text=self.t("confirm_password"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
-        self.register_confirm = ctk.CTkEntry(form_inner, width=300, height=45, 
+        ctk.CTkLabel(form_inner, text=self.t("confirm_password"), font=font(13, "bold")).pack(anchor="w")
+        self.register_confirm = ctk.CTkEntry(form_inner, width=300, height=scale(45), 
                                              placeholder_text=self.t("reenter_password"),
                                              show="●",
                                              fg_color=COLORS["bg_input"],
@@ -569,8 +727,8 @@ class MedicationApp(ctk.CTk):
         self.register_confirm.pack(pady=(5, 25))
         
         # Register button
-        ctk.CTkButton(form_inner, text=self.t("create_account"), width=300, height=48,
-                      font=ctk.CTkFont(size=15, weight="bold"),
+        ctk.CTkButton(form_inner, text=self.t("create_account"), width=300, height=scale(48),
+                      font=font(15, "bold"),
                       fg_color=COLORS["success"], hover_color=COLORS["success_hover"],
                       corner_radius=10, command=self.handle_register).pack()
         
@@ -580,9 +738,10 @@ class MedicationApp(ctk.CTk):
         
         ctk.CTkLabel(back_frame, text=self.t("already_have_account"), 
                      text_color=COLORS["text_secondary"]).pack(side="left", padx=(0, 10))
-        ctk.CTkButton(back_frame, text=self.t("sign_in_instead"), width=80, height=32,
-                      font=ctk.CTkFont(size=13, weight="bold"),
+        ctk.CTkButton(back_frame, text=self.t("sign_in_instead"), width=80, height=scale(32),
+                      font=font(13, "bold"),
                       fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
+                      text_color="#ffffff",
                       corner_radius=8, command=self.show_login).pack(side="left")
         
         # Bind Enter key
@@ -670,17 +829,21 @@ class MedicationApp(ctk.CTk):
     
     def create_sidebar(self):
         """Create the sidebar navigation"""
-        sidebar = ctk.CTkFrame(self, width=260, fg_color=COLORS["bg_card"], corner_radius=0)
-        sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_propagate(False)
+        sidebar_container = ctk.CTkFrame(self, width=260, fg_color=COLORS["bg_card"], corner_radius=0)
+        sidebar_container.grid(row=0, column=0, sticky="nsew")
+        sidebar_container.grid_propagate(False)
+        
+        sidebar = ctk.CTkScrollableFrame(sidebar_container, width=260, fg_color=COLORS["bg_card"], corner_radius=0, label_text="")
+        sidebar.pack(fill="both", expand=True)
+        sidebar.grid_columnconfigure(0, weight=1)
         
         # Logo section
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=25, pady=(35, 25))
         
-        ctk.CTkLabel(logo_frame, text="💊", font=ctk.CTkFont(size=45)).pack()
+        ctk.CTkLabel(logo_frame, text="💊", font=font(45)).pack()
         ctk.CTkLabel(logo_frame, text="Med Reminder", 
-                     font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(8, 0))
+                     font=font(22, "bold")).pack(pady=(8, 0))
         
         # Divider
         ctk.CTkFrame(sidebar, height=1, fg_color=COLORS["border"]).pack(fill="x", padx=25, pady=(0, 20))
@@ -692,9 +855,9 @@ class MedicationApp(ctk.CTk):
         user_inner = ctk.CTkFrame(user_frame, fg_color="transparent")
         user_inner.pack(fill="x", padx=15, pady=15)
         
-        ctk.CTkLabel(user_inner, text="👤", font=ctk.CTkFont(size=24)).pack(side="left")
+        ctk.CTkLabel(user_inner, text="👤", font=font(24), text_color=COLORS["text"]).pack(side="left")
         ctk.CTkLabel(user_inner, text=self.current_username, 
-                     font=ctk.CTkFont(size=15, weight="bold")).pack(side="left", padx=(10, 0))
+                     font=font(15, "bold"), text_color=COLORS["text"]).pack(side="left", padx=(10, 0))
         
         # Navigation buttons
         self.nav_buttons = {}
@@ -706,11 +869,12 @@ class MedicationApp(ctk.CTk):
         ]
         
         for key, text, command in nav_items:
-            btn = ctk.CTkButton(sidebar, text=text, width=220, height=48,
-                               font=ctk.CTkFont(size=14),
+            btn = ctk.CTkButton(sidebar, text=text, width=220, height=scale(48),
+                               font=font(14),
                                fg_color="transparent", 
                                hover_color=COLORS["accent"],
                                anchor="w", corner_radius=10,
+                               text_color=COLORS["text"],
                                command=command)
             btn.pack(pady=4, padx=20)
             self.nav_buttons[key] = btn
@@ -719,21 +883,53 @@ class MedicationApp(ctk.CTk):
         self.set_active_nav("medications")
         
         # Spacer
-        ctk.CTkLabel(sidebar, text="").pack(expand=True)
+        ctk.CTkLabel(sidebar, text="").pack(fill="both", expand=True)
+        
+        # Extra gap before controls
+        ctk.CTkFrame(sidebar, fg_color="transparent", height=scale(60)).pack(fill="x")
+        
+        # Font size controls
+        font_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
+        font_frame.pack(pady=(0, scale(12)))
+        
+        ctk.CTkButton(font_frame, text="A-", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      text_color=COLORS["text"],
+                      command=self.decrease_font_size).pack(side="left", padx=6)
+        sidebar_font_label = ctk.CTkLabel(font_frame, text=self.font_percent_text(),
+                                          font=font(12, "bold"), text_color=COLORS["text_secondary"])
+        sidebar_font_label.pack(side="left", padx=4)
+        self.register_font_label(sidebar_font_label)
+        ctk.CTkButton(font_frame, text="A+", width=60, height=scale(32),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=8, border_width=1, border_color=COLORS["border"],
+                      text_color=COLORS["text"],
+                      command=self.increase_font_size).pack(side="left", padx=6)
+        
+        # Theme toggle
+        ctk.CTkButton(sidebar, text=self.theme_button_text(), width=220, height=scale(40),
+                      font=font(13, "bold"),
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      corner_radius=10, text_color=COLORS["text"],
+                      command=self.toggle_theme).pack(pady=(0, 10), padx=20)
         
         # Language toggle
-        ctk.CTkButton(sidebar, text=self.t("language"), width=220, height=40,
-                      font=ctk.CTkFont(size=13),
+        ctk.CTkButton(sidebar, text=self.t("language"), width=220, height=scale(40),
+                      font=font(13),
                       fg_color=COLORS["bg_input"], hover_color=COLORS["accent"],
+                      text_color=COLORS["text"],
                       corner_radius=10, command=self.toggle_language).pack(pady=(0, 10), padx=20)
         
         # Version info
-        ctk.CTkLabel(sidebar, text=self.t("version"), font=ctk.CTkFont(size=11),
+        ctk.CTkLabel(sidebar, text=self.t("version"), font=font(11),
                      text_color=COLORS["text_secondary"]).pack(pady=(0, 10))
         
         # Logout button
-        ctk.CTkButton(sidebar, text=self.t("sign_out"), width=220, height=48,
-                      font=ctk.CTkFont(size=14),
+        ctk.CTkButton(sidebar, text=self.t("sign_out"), width=220, height=scale(48),
+                      font=font(14),
                       fg_color=COLORS["error"], hover_color="#dc2626",
                       corner_radius=10, command=self.logout).pack(pady=(0, 25), padx=20)
     
@@ -741,9 +937,11 @@ class MedicationApp(ctk.CTk):
         """Update navigation button styles"""
         for key, btn in self.nav_buttons.items():
             if key == active_key:
-                btn.configure(fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"])
+                btn.configure(fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
+                              text_color="#ffffff")
             else:
-                btn.configure(fg_color="transparent", hover_color=COLORS["accent"])
+                btn.configure(fg_color="transparent", hover_color=COLORS["accent"],
+                              text_color=COLORS["text"])
     
     def clear_content(self):
         """Clear the content frame"""
@@ -768,11 +966,12 @@ class MedicationApp(ctk.CTk):
         header.grid(row=0, column=0, sticky="ew", padx=35, pady=(35, 25))
         
         ctk.CTkLabel(header, text=self.t("my_medications_title"), 
-                     font=ctk.CTkFont(size=28, weight="bold")).pack(side="left")
+                     font=font(28, "bold")).pack(side="left")
         
-        ctk.CTkButton(header, text=self.t("refresh"), width=120, height=42,
+        ctk.CTkButton(header, text=self.t("refresh"), width=120, height=scale(42),
                       fg_color=COLORS["bg_card"], hover_color=COLORS["accent"],
                       border_width=1, border_color=COLORS["border"],
+                      text_color=COLORS["text"],
                       corner_radius=10, command=self.refresh_medications).pack(side="right")
         
         # Medications container
@@ -820,9 +1019,9 @@ class MedicationApp(ctk.CTk):
             empty_frame = ctk.CTkFrame(self.meds_container, fg_color=COLORS["bg_card"], corner_radius=15)
             empty_frame.pack(fill="x", pady=10)
             
-            ctk.CTkLabel(empty_frame, text="📭", font=ctk.CTkFont(size=50)).pack(pady=(40, 15))
+            ctk.CTkLabel(empty_frame, text="📭", font=font(50)).pack(pady=(40, 15))
             ctk.CTkLabel(empty_frame, text=self.t("no_medications"), 
-                         font=ctk.CTkFont(size=20, weight="bold")).pack()
+                         font=font(20, "bold")).pack()
             ctk.CTkLabel(empty_frame, text=self.t("click_add"),
                          text_color=COLORS["text_secondary"]).pack(pady=(8, 40))
             return
@@ -843,7 +1042,7 @@ class MedicationApp(ctk.CTk):
         top_row.pack(fill="x")
         
         ctk.CTkLabel(top_row, text=med['name'], 
-                     font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
+                     font=font(20, "bold")).pack(side="left")
         
         # Status badge
         if med['alert']:
@@ -856,7 +1055,7 @@ class MedicationApp(ctk.CTk):
         status_badge = ctk.CTkFrame(top_row, fg_color=status_color, corner_radius=8)
         status_badge.pack(side="right")
         ctk.CTkLabel(status_badge, text=status_text, 
-                     font=ctk.CTkFont(size=12, weight="bold")).pack(padx=14, pady=6)
+                     font=font(12, "bold")).pack(padx=14, pady=6)
         
         # Info row
         info_frame = ctk.CTkFrame(inner, fg_color="transparent")
@@ -872,8 +1071,8 @@ class MedicationApp(ctk.CTk):
             item_frame = ctk.CTkFrame(info_frame, fg_color=COLORS["bg_input"], corner_radius=8)
             item_frame.pack(side="left", padx=(0, 10))
             
-            ctk.CTkLabel(item_frame, text=value, font=ctk.CTkFont(size=14, weight="bold")).pack(padx=15, pady=(10, 2))
-            ctk.CTkLabel(item_frame, text=label, font=ctk.CTkFont(size=11),
+            ctk.CTkLabel(item_frame, text=value, font=font(14, "bold")).pack(padx=15, pady=(10, 2))
+            ctk.CTkLabel(item_frame, text=label, font=font(11),
                          text_color=COLORS["text_secondary"]).pack(padx=15, pady=(0, 10))
         
         # Today's progress section
@@ -903,11 +1102,11 @@ class MedicationApp(ctk.CTk):
         today_inner.pack(fill="x", padx=15, pady=12)
         
         ctk.CTkLabel(today_inner, text=self.t("todays_progress"), 
-                     font=ctk.CTkFont(size=12, weight="bold"),
+                     font=font(12, "bold"),
                      text_color=COLORS["text_secondary"]).pack(side="left")
         
         ctk.CTkLabel(today_inner, text=progress_text, 
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=font(13, "bold"),
                      text_color=progress_color).pack(side="right")
         
         # Take button - disabled if already completed for today
@@ -916,14 +1115,14 @@ class MedicationApp(ctk.CTk):
         
         if taken_today >= daily_dose:
             # Already completed - show disabled-style button
-            ctk.CTkButton(btn_frame, text=self.t("completed_today"), width=160, height=42,
+            ctk.CTkButton(btn_frame, text=self.t("completed_today"), width=160, height=scale(42),
                           fg_color=COLORS["success"], hover_color=COLORS["success"],
-                          corner_radius=10, font=ctk.CTkFont(size=14, weight="bold"),
+                          corner_radius=10, font=font(14, "bold"),
                           state="disabled").pack(side="right")
         else:
-            ctk.CTkButton(btn_frame, text=self.t("take_dose"), width=140, height=42,
+            ctk.CTkButton(btn_frame, text=self.t("take_dose"), width=140, height=scale(42),
                           fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
-                          corner_radius=10, font=ctk.CTkFont(size=14, weight="bold"),
+                          corner_radius=10, font=font(14, "bold"),
                           command=lambda m=med: self.take_medication(m)).pack(side="right")
     
     def take_medication(self, med):
@@ -962,9 +1161,9 @@ class MedicationApp(ctk.CTk):
         header.grid(row=0, column=0, sticky="ew", padx=35, pady=(35, 25))
         
         ctk.CTkLabel(header, text=self.t("add_new_medication"), 
-                     font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w")
+                     font=font(28, "bold")).pack(anchor="w")
         ctk.CTkLabel(header, text=self.t("add_subtitle"),
-                     font=ctk.CTkFont(size=14), text_color=COLORS["text_secondary"]).pack(anchor="w", pady=(5, 0))
+                     font=font(14), text_color=COLORS["text_secondary"]).pack(anchor="w", pady=(5, 0))
         
         # Form container
         form_container = ctk.CTkFrame(self.content_frame, fg_color=COLORS["bg_card"], corner_radius=15)
@@ -974,8 +1173,8 @@ class MedicationApp(ctk.CTk):
         form.pack(padx=40, pady=40)
         
         # Medication name
-        ctk.CTkLabel(form, text=self.t("medication_name"), font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
-        self.add_name_entry = ctk.CTkEntry(form, width=450, height=48, 
+        ctk.CTkLabel(form, text=self.t("medication_name"), font=font(14, "bold")).pack(anchor="w")
+        self.add_name_entry = ctk.CTkEntry(form, width=450, height=scale(48), 
                                            placeholder_text=self.t("medication_placeholder"),
                                            fg_color=COLORS["bg_input"],
                                            border_color=COLORS["border"],
@@ -989,8 +1188,8 @@ class MedicationApp(ctk.CTk):
         # Total pills
         left_col = ctk.CTkFrame(num_frame, fg_color="transparent")
         left_col.pack(side="left", padx=(0, 25))
-        ctk.CTkLabel(left_col, text=self.t("total_pills"), font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
-        self.add_stock_entry = ctk.CTkEntry(left_col, width=212, height=48,
+        ctk.CTkLabel(left_col, text=self.t("total_pills"), font=font(14, "bold")).pack(anchor="w")
+        self.add_stock_entry = ctk.CTkEntry(left_col, width=212, height=scale(48),
                                             placeholder_text=self.t("pills_placeholder"),
                                             fg_color=COLORS["bg_input"],
                                             border_color=COLORS["border"],
@@ -1000,8 +1199,8 @@ class MedicationApp(ctk.CTk):
         # Pills per day
         right_col = ctk.CTkFrame(num_frame, fg_color="transparent")
         right_col.pack(side="left")
-        ctk.CTkLabel(right_col, text=self.t("pills_per_day"), font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
-        self.add_daily_entry = ctk.CTkEntry(right_col, width=212, height=48,
+        ctk.CTkLabel(right_col, text=self.t("pills_per_day"), font=font(14, "bold")).pack(anchor="w")
+        self.add_daily_entry = ctk.CTkEntry(right_col, width=212, height=scale(48),
                                             placeholder_text=self.t("per_day_placeholder"),
                                             fg_color=COLORS["bg_input"],
                                             border_color=COLORS["border"],
@@ -1012,16 +1211,17 @@ class MedicationApp(ctk.CTk):
         info_frame = ctk.CTkFrame(form, fg_color=COLORS["bg_input"], corner_radius=10)
         info_frame.pack(fill="x", pady=(0, 30))
         
-        ctk.CTkLabel(info_frame, text=self.t("smart_alerts"), font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=20, pady=(15, 5))
+        ctk.CTkLabel(info_frame, text=self.t("smart_alerts"), font=font(13, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
         ctk.CTkLabel(info_frame, text=self.t("smart_alerts_desc"),
-                     font=ctk.CTkFont(size=12), text_color=COLORS["text_secondary"],
+                     font=font(12), text_color=COLORS["text_secondary"],
                      justify="left").pack(anchor="w", padx=20, pady=(0, 15))
         
         # Submit button
-        ctk.CTkButton(form, text=self.t("add_medication_btn"), width=450, height=52,
-                      font=ctk.CTkFont(size=16, weight="bold"),
+        ctk.CTkButton(form, text=self.t("add_medication_btn"), width=450, height=scale(52),
+                      font=font(16, "bold"),
                       fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
-                      corner_radius=10, command=self.add_new_medication).pack()
+                      corner_radius=10,
+                      command=self.add_new_medication).pack()
         
         # Focus first field
         self.after(100, self.add_name_entry.focus)
@@ -1088,9 +1288,9 @@ class MedicationApp(ctk.CTk):
         header.grid(row=0, column=0, sticky="ew", padx=35, pady=(35, 25))
         
         ctk.CTkLabel(header, text=self.t("medication_history"), 
-                     font=ctk.CTkFont(size=28, weight="bold")).pack(side="left")
+                     font=font(28, "bold")).pack(side="left")
         
-        ctk.CTkButton(header, text=self.t("export_pdf"), width=140, height=42,
+        ctk.CTkButton(header, text=self.t("export_pdf"), width=140, height=scale(42),
                       fg_color=COLORS["success"], hover_color=COLORS["success_hover"],
                       corner_radius=10, command=self.export_pdf).pack(side="right")
         
@@ -1117,9 +1317,9 @@ class MedicationApp(ctk.CTk):
             empty_frame = ctk.CTkFrame(self.history_container, fg_color=COLORS["bg_card"], corner_radius=15)
             empty_frame.pack(fill="x", pady=10)
             
-            ctk.CTkLabel(empty_frame, text="📭", font=ctk.CTkFont(size=50)).pack(pady=(40, 15))
+            ctk.CTkLabel(empty_frame, text="📭", font=font(50)).pack(pady=(40, 15))
             ctk.CTkLabel(empty_frame, text=self.t("no_history"), 
-                         font=ctk.CTkFont(size=20, weight="bold")).pack()
+                         font=font(20, "bold")).pack()
             ctk.CTkLabel(empty_frame, text=self.t("take_some_meds"),
                          text_color=COLORS["text_secondary"]).pack(pady=(8, 40))
             return
@@ -1136,10 +1336,10 @@ class MedicationApp(ctk.CTk):
         inner.pack(fill="both", expand=True, padx=25, pady=18)
         
         ctk.CTkLabel(inner, text=f"💊  {log['medication_name']}", 
-                     font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+                     font=font(16, "bold")).pack(side="left")
         
         ctk.CTkLabel(inner, text=log['taken_at'], 
-                     font=ctk.CTkFont(size=13), text_color=COLORS["text_secondary"]).pack(side="right")
+                     font=font(13), text_color=COLORS["text_secondary"]).pack(side="right")
     
     def export_pdf(self):
         """Export history to PDF"""
