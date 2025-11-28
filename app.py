@@ -328,8 +328,107 @@ TRANSLATIONS = {
         "language": "🌐 语言",
         "light_mode": "☀ 亮色",
         "dark_mode": "🌙 暗色",
-    }
+    },
+    "fr": {}  # placeholder; populated below
 }
+
+# Build French strings by cloning English and overriding select labels
+TRANSLATIONS["fr"] = {**TRANSLATIONS["en"], **{
+    # App
+    "app_title": "Rappel Santé Médicaments",
+    "welcome_back": "Content de vous revoir !",
+    "sign_in_subtitle": "Connectez-vous à votre compte",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "enter_username": "Entrez votre nom d'utilisateur",
+    "enter_password": "Entrez votre mot de passe",
+    "sign_in": "Se connecter",
+    "new_here": "Nouveau ?",
+    "create_account_btn": "Créer un compte",
+    "create_account": "Créer un compte",
+    "join_subtitle": "Rejoignez-nous et suivez vos traitements",
+    "choose_username": "Choisissez un nom d'utilisateur",
+    "password_hint": "Au moins 3 caractères",
+    "confirm_password": "Confirmer le mot de passe",
+    "reenter_password": "Saisissez à nouveau votre mot de passe",
+    "already_have_account": "Vous avez déjà un compte ?",
+    "sign_in_instead": "Se connecter",
+    "welcome_user": "Bienvenue",
+    "my_medications": "📋  Mes médicaments",
+    "add_medication": "➕  Ajouter un médicament",
+    "history": "📜  Historique",
+    "sign_out": "🚪  Déconnexion",
+    "my_medications_title": "Mes médicaments",
+    "refresh": "🔄  Rafraîchir",
+    "no_medications": "Aucun médicament pour l'instant",
+    "click_add": "Cliquez sur « Ajouter un médicament » pour commencer",
+    "in_stock": "en stock",
+    "per_day": "par jour",
+    "days_left": "jours restants",
+    "low_stock": "⚠️ Stock faible",
+    "in_stock_status": "✓ En stock",
+    "todays_progress": "Progression du jour",
+    "done_today": "✅ Terminé pour aujourd'hui !",
+    "taken_today": "pris aujourd'hui",
+    "more_to_go": "restants",
+    "completed_today": "✓ Terminé aujourd'hui",
+    "take_dose": "💊 Prendre",
+    "add_new_medication": "Ajouter un nouveau médicament",
+    "add_subtitle": "Saisissez les détails du médicament ci-dessous",
+    "medication_name": "Nom du médicament",
+    "medication_placeholder": "ex : Lisinopril, Metformine, Aspirine",
+    "total_pills": "Nombre total de comprimés",
+    "pills_placeholder": "ex : 30",
+    "pills_per_day": "Comprimés par jour",
+    "per_day_placeholder": "ex : 2",
+    "smart_alerts": "💡 Alertes intelligentes",
+    "smart_alerts_desc": "L'application calcule automatiquement vos jours restants et vous alerte quand le stock est bas (moins de 3 jours).",
+    "add_medication_btn": "Ajouter le médicament",
+    "medication_history": "Historique des prises",
+    "export_pdf": "📄  Exporter en PDF",
+    "no_history": "Aucun historique",
+    "take_some_meds": "Prenez un médicament pour voir l'historique ici",
+    "ok": "OK",
+    "input_required": "Saisie requise",
+    "enter_username_msg": "Veuillez entrer votre nom d'utilisateur.",
+    "enter_password_msg": "Veuillez entrer votre mot de passe.",
+    "login_failed": "Échec de la connexion",
+    "invalid_credentials": "Identifiants invalides.\nVérifiez vos informations.",
+    "invalid_username": "Nom d'utilisateur invalide",
+    "username_min": "Le nom d'utilisateur doit comporter au moins 3 caractères.",
+    "weak_password": "Mot de passe faible",
+    "password_min": "Le mot de passe doit comporter au moins 3 caractères.",
+    "password_mismatch": "Mot de passe différent",
+    "passwords_not_match": "Les mots de passe ne correspondent pas.\nVeuillez réessayer.",
+    "username_taken": "Nom d'utilisateur déjà pris",
+    "username_exists": "est déjà enregistré.\nVeuillez en choisir un autre.",
+    "account_created": "Compte créé !",
+    "welcome_new_user": "Votre compte a été créé avec succès.",
+    "missing_info": "Informations manquantes",
+    "enter_med_name": "Veuillez entrer le nom du médicament.",
+    "enter_total_pills": "Veuillez entrer le stock total.",
+    "enter_pills_per_day": "Veuillez entrer la dose par jour.",
+    "invalid_input": "Entrée invalide",
+    "positive_numbers": "Le stock et la dose journalière doivent être des entiers positifs.",
+    "success": "Succès",
+    "med_added": "a été ajouté à vos médicaments.",
+    "dose_recorded": "Prise enregistrée",
+    "took_dose": "1 dose prise de",
+    "remaining": "Restant :",
+    "pills": "comprimés",
+    "error": "Erreur",
+    "record_failed": "Impossible d'enregistrer la prise.",
+    "export_complete": "Export terminé",
+    "pdf_saved": "Rapport PDF enregistré ici :",
+    "export_failed": "Échec de l'export",
+    "export_error": "Impossible de générer le PDF.\nAssurez-vous d'avoir un historique.",
+    "language": "🌐 Langue",
+    "light_mode": "☀ Clair",
+    "dark_mode": "🌙 Sombre",
+    "delete": "Supprimer",
+    "delete_confirm": "Supprimer ce médicament ?",
+    "delete_success": "Médicament supprimé.",
+}}
 
 
 class CustomDialog(ctk.CTkToplevel):
@@ -395,6 +494,8 @@ class MedicationApp(ctk.CTk):
         
         # Current language
         self.current_lang = "en"
+        self.languages = ["en", "zh", "fr"]
+        self.lang_index = 0
         self.font_scale = 1.0
         self.font_labels = []
         self.theme_mode = "dark"
@@ -422,7 +523,8 @@ class MedicationApp(ctk.CTk):
     
     def toggle_language(self):
         """Toggle between English and Chinese"""
-        self.current_lang = "zh" if self.current_lang == "en" else "en"
+        self.lang_index = (self.lang_index + 1) % len(self.languages)
+        self.current_lang = self.languages[self.lang_index]
         self.title(self.t("app_title"))
         self.refresh_current_view()
     
