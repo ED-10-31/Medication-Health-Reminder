@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src
 
 import customtkinter as ctk
 from datetime import datetime
+import tkinter.messagebox as messagebox
 
 # Import backend modules
 import database
@@ -151,6 +152,9 @@ TRANSLATIONS = {
         "more_to_go": "more to go",
         "completed_today": "✓ Completed Today",
         "take_dose": "💊 Take Dose",
+        "delete": "Delete",
+        "delete_confirm": "Delete this medication?",
+        "delete_success": "Medication deleted.",
         
         # Add Medication
         "add_new_medication": "Add New Medication",
@@ -261,6 +265,9 @@ TRANSLATIONS = {
         "more_to_go": "还需服用",
         "completed_today": "✓ 今日已完成",
         "take_dose": "💊 服用",
+        "delete": "删除",
+        "delete_confirm": "确定删除该药物？",
+        "delete_success": "药物已删除。",
         
         # Add Medication
         "add_new_medication": "添加新药物",
@@ -470,6 +477,9 @@ class MedicationApp(ctk.CTk):
                 lbl.configure(text=text, font=font(12, "bold"))
                 alive_labels.append(lbl)
         self.font_labels = alive_labels
+    
+    def confirm_delete(self, med_name):
+        return messagebox.askyesno(self.t("delete"), f"{self.t('delete_confirm')}\n\n{med_name}")
     
     def show_dialog(self, title, message, dialog_type="info"):
         """Show a custom dialog"""
@@ -1053,9 +1063,20 @@ class MedicationApp(ctk.CTk):
             status_text = self.t("in_stock_status")
         
         status_badge = ctk.CTkFrame(top_row, fg_color=status_color, corner_radius=8)
-        status_badge.pack(side="right")
+        
+        actions = ctk.CTkFrame(top_row, fg_color="transparent")
+        actions.pack(side="right", padx=(10, 0))
+        
+        delete_btn = ctk.CTkButton(actions, text=self.t("delete"), width=80, height=scale(32),
+                                   fg_color=COLORS["error"], hover_color="#dc2626",
+                                   corner_radius=8, font=font(12, "bold"),
+                                   text_color="#ffffff",
+                                   command=lambda m=med: self.delete_medication(m))
+        delete_btn.pack(side="right")
+        
+        status_badge.pack(side="right", padx=(0, 10))
         ctk.CTkLabel(status_badge, text=status_text, 
-                     font=font(12, "bold")).pack(padx=14, pady=6)
+                     font=font(12, "bold"), text_color="#ffffff").pack(padx=14, pady=6)
         
         # Info row
         info_frame = ctk.CTkFrame(inner, fg_color="transparent")
@@ -1148,6 +1169,18 @@ class MedicationApp(ctk.CTk):
                 return
         
         self.show_dialog(self.t("error"), self.t("record_failed"), "error")
+    
+    def delete_medication(self, med):
+        """Remove a medication and related history"""
+        if not self.confirm_delete(med["name"]):
+            return
+        
+        data = get_data_store()
+        data["medications"] = [m for m in data["medications"] if m["id"] != med["id"]]
+        data["history"] = [h for h in data["history"] if h.get("med_id") != med["id"]]
+        save_data()
+        self.refresh_medications()
+        self.show_dialog(self.t("success"), self.t("delete_success"), "success")
     
     # ============================================
     # ADD MEDICATION VIEW

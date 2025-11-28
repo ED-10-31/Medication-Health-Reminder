@@ -23,27 +23,6 @@
     ],
     "medications": [
         {
-            "id": 1,
-            "user_id": 1,
-            "name": "123",
-            "total_pills": 120,
-            "pills_per_day": 3
-        },
-        {
-            "id": 2,
-            "user_id": 1,
-            "name": "12",
-            "total_pills": 11,
-            "pills_per_day": 1
-        },
-        {
-            "id": 3,
-            "user_id": 1,
-            "name": "4",
-            "total_pills": 1,
-            "pills_per_day": 3
-        },
-        {
             "id": 4,
             "user_id": 3,
             "name": "quotiapine",
@@ -52,41 +31,6 @@
         }
     ],
     "history": [
-        {
-            "med_id": 2,
-            "medication_name": "12",
-            "taken_at": "2025-11-25 19:29:49"
-        },
-        {
-            "med_id": 1,
-            "medication_name": "123",
-            "taken_at": "2025-11-25 19:29:54"
-        },
-        {
-            "med_id": 1,
-            "medication_name": "123",
-            "taken_at": "2025-11-25 19:29:58"
-        },
-        {
-            "med_id": 1,
-            "medication_name": "123",
-            "taken_at": "2025-11-25 19:30:01"
-        },
-        {
-            "med_id": 3,
-            "medication_name": "4",
-            "taken_at": "2025-11-25 19:40:58"
-        },
-        {
-            "med_id": 3,
-            "medication_name": "4",
-            "taken_at": "2025-11-25 19:41:01"
-        },
-        {
-            "med_id": 3,
-            "medication_name": "4",
-            "taken_at": "2025-11-25 19:41:04"
-        },
         {
             "med_id": 4,
             "medication_name": "quotiapine",
